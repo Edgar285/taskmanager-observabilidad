@@ -91,6 +91,21 @@ sudo docker compose pull --quiet otel-collector node-exporter openobserve
 sudo docker compose up -d --remove-orphans
 echo "$O2_HASH" > .o2-hash
 
+paso "Verificando OpenObserve (puerto 5080)"
+O2_OK=0
+for i in $(seq 1 30); do
+  if curl -fsS -o /dev/null http://localhost:5080/healthz 2>/dev/null; then O2_OK=1; break; fi
+  sleep 3
+done
+if [ "$O2_OK" = 1 ]; then
+  echo "OpenObserve arriba"
+else
+  echo "::warning::OpenObserve no respondio en /healthz. Ultimas lineas de su log:"
+  sudo docker compose ps openobserve || true
+  sudo docker compose logs --tail 40 openobserve || true
+  rm -f .o2-hash   # el siguiente despliegue lo vuelve a inicializar
+fi
+
 paso "Verificando /api/health"
 for i in $(seq 1 30); do
   if curl -fsS http://localhost/api/health > /tmp/health.json 2>/dev/null; then
