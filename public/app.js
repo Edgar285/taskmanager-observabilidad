@@ -89,7 +89,7 @@
   }
 
   async function completar(t) {
-    try { await api(`/api/tareas/${t.id}/completar`, { method: 'PATCH' }); avisar('Tarea completada'); }
+    try { await api(`/api/tareas/${t.id}/completado`, { method: 'PATCH' }); avisar('Tarea completada'); }
     catch (e) { avisar(e.message, true); }
     await cargarTareas();
   }
