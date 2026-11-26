@@ -39,7 +39,7 @@ jobs:
   # ---------------------------------------------------------------------------
   pruebas-backend:
     name: 1. Pruebas backend (Jest)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       total: ${{ steps.resumen.outputs.total }}
       fallidas: ${{ steps.resumen.outputs.fallidas }}
@@ -82,7 +82,7 @@ jobs:
   # ---------------------------------------------------------------------------
   pruebas-e2e:
     name: 2. Pruebas E2E (Playwright)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       total: ${{ steps.resumen.outputs.total }}
       fallidas: ${{ steps.resumen.outputs.fallidas }}
@@ -136,7 +136,7 @@ jobs:
     name: 3. Build y push a Docker Hub
     needs: [pruebas-backend, pruebas-e2e]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -166,7 +166,7 @@ jobs:
     name: 4. Despliegue en AWS EC2
     needs: build-push
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -235,7 +235,7 @@ jobs:
     name: 5. Registrar ejecucion en OpenObserve
     needs: [pruebas-backend, pruebas-e2e, build-push, deploy]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
