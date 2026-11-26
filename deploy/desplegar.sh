@@ -13,13 +13,49 @@ NUEVA="$1"
 
 paso() { echo "==> $*"; }
 
+# --- Contenedores de practicas anteriores que ocupaban el puerto 80 --------
+sudo docker rm -f webapp-taskmanager webapp-container >/dev/null 2>&1 || true
+
+# --- Espacio en disco ------------------------------------------------------
+libre_mb() { df -Pm / | awk 'NR==2 {print $4}'; }
+
+# Si el volumen EBS se agrando en la consola de AWS, se extiende la particion y el
+# sistema de archivos (si no hubo cambio, estos comandos no hacen nada).
+RAIZ=$(findmnt -n -o SOURCE /)
+DISCO="/dev/$(lsblk -no PKNAME "$RAIZ" 2>/dev/null || true)"
+PART=$(echo "$RAIZ" | grep -o '[0-9]*$')
+if [ -b "$DISCO" ] && [ -n "$PART" ]; then
+  sudo growpart "$DISCO" "$PART" >/dev/null 2>&1 && paso "Particion extendida" || true
+  sudo resize2fs "$RAIZ" >/dev/null 2>&1 || sudo xfs_growfs / >/dev/null 2>&1 || true
+fi
+
+paso "Espacio libre antes de limpiar: $(libre_mb) MB"
+# Imagenes y cache que no usa ningun contenedor (practicas anteriores, versiones viejas)
+sudo docker container prune -f >/dev/null 2>&1 || true
+sudo docker image prune -af >/dev/null 2>&1 || true
+sudo docker builder prune -af >/dev/null 2>&1 || true
+sudo apt-get clean >/dev/null 2>&1 || true
+sudo journalctl --vacuum-size=50M >/dev/null 2>&1 || true
+paso "Espacio libre despues de limpiar: $(libre_mb) MB"
+
 # --- Memoria swap (la t3.micro solo tiene 1 GB de RAM) ---------------------
+# 1 GB si el disco es chico; asi quedan ~2 GB para las imagenes de Docker
+SWAP_MB=1024
+if sudo swapon --show | grep -q '/swapfile'; then
+  ACTUAL=$(( $(stat -c %s /swapfile) / 1048576 ))
+  if [ "$ACTUAL" -gt "$SWAP_MB" ] && [ "$(libre_mb)" -lt 3000 ]; then
+    paso "Reduciendo la swap de ${ACTUAL} MB a ${SWAP_MB} MB para liberar disco"
+    sudo swapoff /swapfile && sudo rm -f /swapfile
+  fi
+fi
 if ! sudo swapon --show | grep -q '/swapfile'; then
-  paso "Creando 2 GB de memoria swap"
-  sudo fallocate -l 2G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
+  paso "Creando ${SWAP_MB} MB de memoria swap"
+  sudo fallocate -l ${SWAP_MB}M /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=$SWAP_MB
   sudo chmod 600 /swapfile && sudo mkswap /swapfile >/dev/null && sudo swapon /swapfile
   grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null
 fi
+paso "Espacio libre para las imagenes: $(libre_mb) MB"
+df -h /
 
 # --- Plugin docker compose ------------------------------------------------
 if ! sudo docker compose version >/dev/null 2>&1; then
@@ -33,9 +69,6 @@ if ! sudo docker compose version >/dev/null 2>&1; then
   }
 fi
 sudo docker compose version
-
-# --- Contenedores de practicas anteriores que ocupaban el puerto 80 --------
-sudo docker rm -f webapp-taskmanager webapp-container >/dev/null 2>&1 || true
 
 ANTERIOR=$(grep '^APP_IMAGE=' .env.anterior 2>/dev/null | cut -d= -f2- || true)
 
