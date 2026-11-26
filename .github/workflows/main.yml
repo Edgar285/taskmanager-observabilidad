@@ -23,6 +23,11 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      reiniciar_openobserve:
+        description: "Borrar los datos de OpenObserve y volver a crear el usuario con los secrets actuales"
+        type: boolean
+        default: false
 
 concurrency:
   group: cicd-${{ github.ref }}
@@ -204,14 +209,16 @@ jobs:
         env:
           NUEVA_IMAGEN: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           APP_DIR: ${{ env.APP_DIR }}
+          REINICIAR_O2: ${{ inputs.reiniciar_openobserve && '1' || '0' }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: NUEVA_IMAGEN,APP_DIR
+          envs: NUEVA_IMAGEN,APP_DIR,REINICIAR_O2
           command_timeout: 15m
           script: |
             chmod 600 ~/"$APP_DIR"/.env
+            if [ "$REINICIAR_O2" = "1" ]; then rm -f ~/"$APP_DIR"/.o2-hash; fi
             bash ~/"$APP_DIR"/desplegar.sh "$NUEVA_IMAGEN"
 
       - name: Verificar la app y OpenObserve desde internet
