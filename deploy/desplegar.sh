@@ -75,9 +75,21 @@ ANTERIOR=$(grep '^APP_IMAGE=' .env.anterior 2>/dev/null | cut -d= -f2- || true)
 paso "Descargando la nueva imagen $NUEVA"
 sudo docker pull "$NUEVA"
 
+# --- Credenciales de OpenObserve -------------------------------------------
+# OpenObserve solo toma el usuario y la contrasena de los secrets la PRIMERA vez
+# que arranca. Si los secrets cambian, se borra su volumen para que los vuelva a
+# tomar (se pierden los datos de observabilidad anteriores, no los de la app).
+O2_HASH=$(grep -E '^O2_(USER|PASSWORD)=' .env | sha256sum | cut -c1-16)
+if [ "$(cat .o2-hash 2>/dev/null || true)" != "$O2_HASH" ]; then
+  paso "Credenciales de OpenObserve nuevas: se reinicia OpenObserve"
+  sudo docker compose rm -sf openobserve >/dev/null 2>&1 || true
+  sudo docker volume rm taskmanager_openobserve-data >/dev/null 2>&1 || true
+fi
+
 paso "Levantando los servicios"
 sudo docker compose pull --quiet otel-collector node-exporter openobserve
 sudo docker compose up -d --remove-orphans
+echo "$O2_HASH" > .o2-hash
 
 paso "Verificando /api/health"
 for i in $(seq 1 30); do
