@@ -184,6 +184,9 @@ jobs:
             echo "O2_PASSWORD=${O2_PASSWORD}"
             echo "O2_AUTH=$(printf '%s:%s' "$O2_USER" "$O2_PASSWORD" | base64 -w0)"
           } > deploy/.env
+          # La accion scp corre en un contenedor con otro usuario: necesita poder leerlo.
+          # El runner es temporal; en la EC2 el archivo queda con permisos 600.
+          chmod 644 deploy/.env
           ls -la deploy
 
       - name: Copiar docker-compose y configuracion a la EC2
